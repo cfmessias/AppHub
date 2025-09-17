@@ -3,6 +3,7 @@ import os, sys, contextlib, runpy
 import streamlit as st
 import base64, requests, importlib
 import pandas as pd
+
 # ---------- Config ----------
 st.set_page_config(page_title="Hub de Apps", page_icon="🧭", layout="wide", initial_sidebar_state="collapsed")
 
@@ -84,10 +85,22 @@ def mount_app(app_dir: str):
         sys.path = old_path
 
 def run_file(app_dir: str, filename: str):
+    """Executa um ficheiro como __main__ e RESTAURA set_page_config no fim."""
+    
     path = os.path.join(app_dir, filename)
-    if not os.path.exists(path): raise FileNotFoundError(path)
-    st.set_page_config = lambda *a, **k: None  # evitar set_page_config duplo
-    runpy.run_path(path, run_name="__main__")
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+
+    orig_set_page_config = getattr(st, "set_page_config", None)
+    try:
+        # impedir set_page_config duplicado DENTRO da app filha
+        st.set_page_config = lambda *a, **k: None
+        runpy.run_path(path, run_name="__main__")
+    finally:
+        # 🔧 ponto crucial: repor a função original para o Hub
+        if orig_set_page_config is not None:
+            st.set_page_config = orig_set_page_config
+
 
 # (opcional) shim p/ Demografia se o CSV vier com labels alternativos
 @contextlib.contextmanager
